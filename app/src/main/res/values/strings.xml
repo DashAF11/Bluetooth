@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">BLEMedium</string>
+
+    <string name="char_uuid_missed_connection">Your Missed Connection UUID</string>
+    <string name="char_uuid_emergency">Your Emergency Service UUID</string>
+    <string name="char_uuid_emergency_call">Your Emergency Call UUID</string>
+    <string name="char_uuid_catch">Your Catch UUID</string>
+    <string name="char_uuid_catch_all">Your Catch All UUID</string>
+    <string name="char_uuid_missed_calls">Your Missed call UUID</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+
+</resources>

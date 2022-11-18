@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/navigation"
+    app:startDestination="@id/scanningFragment">
+
+    <fragment
+        android:id="@+id/deviceInfoFragment"
+        android:name="com.example.blemedium.presenter.fragment.DeviceInfoFragment"
+        android:label="fragment_device_info"
+        tools:layout="@layout/fragment_device_info" >
+        <argument
+            android:name="deviceData"
+            app:argType="com.example.blemedium.blemodule.BleDeviceData" />
+    </fragment>
+    <fragment
+        android:id="@+id/scanningFragment"
+        android:name="com.example.blemedium.presenter.fragment.ScanningFragment"
+        android:label="fragment_scanning"
+        tools:layout="@layout/fragment_scanning" >
+        <action
+            android:id="@+id/action_scanningFragment_to_deviceInfoFragment"
+            app:destination="@id/deviceInfoFragment"
+            app:popUpToInclusive="false" />
+    </fragment>
+</navigation>
