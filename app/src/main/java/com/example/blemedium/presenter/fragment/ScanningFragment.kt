@@ -4,7 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -22,7 +21,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -32,6 +30,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.blemedium.blemodule.BleDeviceData
 import com.example.blemedium.databinding.FragmentScanningBinding
 import com.example.blemedium.presenter.adapter.BleDeviceAdapter
+import com.example.blemedium.utils.hideKeyboard
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
 import javax.inject.Inject
@@ -64,7 +63,6 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
     private var peripheralAddress = ""
     private var isBleDialogAlreadyShown = false
 
-    private lateinit var bluetoothManager: BluetoothManager
     private var scanning = false
     private val handler = Handler(Looper.getMainLooper())
 
@@ -327,8 +325,7 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
     }
 
     private fun scanLeDevice() {
-        binding.root.hideKeyboard()
-
+        requireActivity().hideKeyboard()
         //regionFilterByUUID //Scanning for devices with a specific service UUID
         /* if (serviceUUIDs != null) {
              filtersUUID = ArrayList()
@@ -413,12 +410,6 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
         btnScan.text = "Scan"
 
         isDeviceEmpty = bleDeviceDataList.size == 0
-    }
-
-    private fun View.hideKeyboard() {
-        val inputMethodManager: InputMethodManager? =
-            requireActivity().getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager?
-        inputMethodManager?.hideSoftInputFromWindow(this.applicationWindowToken, 0)
     }
 
     /**
