@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.blemedium.blemodule.BleDeviceData
 import com.example.blemedium.databinding.ListItemBleDeviceLayoutBinding
+import com.example.blemedium.utils.setSafeOnClickListener
 
 class BleDeviceAdapter(private val connectDeviceListener: ConnectDeviceListener) :
     RecyclerView.Adapter<BleDeviceAdapter.ViewHolder>() {
@@ -44,14 +45,14 @@ class BleDeviceAdapter(private val connectDeviceListener: ConnectDeviceListener)
             binding.apply {
                 bleDeviceData = entity
 
-                itemView.setOnClickListener {
-                    connectDeviceListener.connectDevice(entity)
+                itemView.setSafeOnClickListener {
+                    connectDeviceListener.getDeviceInfo(entity)
                 }
             }
         }
     }
 
     interface ConnectDeviceListener {
-        fun connectDevice(deviceData: BleDeviceData)
+        fun getDeviceInfo(deviceData: BleDeviceData)
     }
 }

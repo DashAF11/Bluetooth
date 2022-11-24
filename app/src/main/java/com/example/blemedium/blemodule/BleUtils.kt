@@ -11,6 +11,7 @@ const val CCCD_DESCRIPTOR_UUID = "00002902-0000-1000-8000-00805F9B34FB"
 fun BluetoothGatt.printGattTable(): List<BleServiceData> {
     val serviceList = arrayListOf<BleServiceData>()
     val characteristicsList = arrayListOf<BleCharacteristicsData>()
+    val descriptorList = arrayListOf<BleDescriptorData>()
 
     if (services.isNotEmpty()) {
 
@@ -19,17 +20,42 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
                 service.characteristics.joinToString(separator = "\n|--", prefix = "|--") { char ->
                     var description = "${char.uuid}: ${char.printProperties()}"
                     Log.d("description ", description)
-                    characteristicsList.add(BleCharacteristicsData(char.uuid, char.printProperties()))
+
+                    if (char.descriptors.isNotEmpty()) {
+                        char.descriptors.forEach { descriptor ->
+                            descriptorList.add(
+                                BleDescriptorData(
+                                    descriptor.uuid,
+                                    descriptor.printProperties()
+                                )
+                            )
+                        }
+                    }
+
+                    characteristicsList.add(
+                        BleCharacteristicsData(
+                            char.uuid,
+                            char.printProperties(),
+                            descriptorList
+                        )
+                    )
 
                     if (char.descriptors.isNotEmpty()) {
                         description += "\n" + char.descriptors.joinToString(
                             separator = "\n|------", prefix = "|------"
                         ) { descriptor ->
                             "${descriptor.uuid}: ${descriptor.printProperties()}"
+                            descriptorList.add(
+                                BleDescriptorData(
+                                    descriptor.uuid,
+                                    descriptor.printProperties()
+                                )
+                            )
                             Log.d("description_other", description).toString()
                         }
                     }
                     description
+
                 }
             Log.d("BLEGattService ", "${service.uuid}\nCharacteristics:\n$characteristicsTable")
             serviceList.add(BleServiceData(service.uuid, characteristicsList))

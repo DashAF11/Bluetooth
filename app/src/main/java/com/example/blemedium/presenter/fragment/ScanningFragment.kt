@@ -13,10 +13,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.os.*
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -30,7 +27,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.blemedium.blemodule.BleDeviceData
 import com.example.blemedium.databinding.FragmentScanningBinding
 import com.example.blemedium.presenter.adapter.BleDeviceAdapter
-import com.example.blemedium.utils.hideKeyboard
+import com.example.blemedium.utils.*
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
 import javax.inject.Inject
@@ -183,15 +180,16 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
             MATCH_NUM_FEW_ADVERTISEMENT. A few advertisements are needed for a match
             MATCH_NUM_MAX_ADVERTISEMENT. The maximum number of advertisements the hardware can handle per timeframe is needed for a match.
              */
-            .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT).setReportDelay(0L).build()
+            .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT)
+            .setReportDelay(0L).build()
         //endregion
 
         binding.apply {
-            btnScan.setOnClickListener {
+            btnScan.setSafeOnClickListener {
                 checkScanningDevice()
             }
 
-            btnFilterApply.setOnClickListener {
+            btnFilterApply.setSafeOnClickListener {
                 checkScanningDevice()
             }
         }
@@ -237,10 +235,10 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
     }
 
     private fun FragmentScanningBinding.scanUIChange() {
-        filterLetter = etFilterBy.text.toString().trim()
+        filterLetter = etFilterBy.string
 
         sfLayout.startShimmer()
-        sfLayout.visibility = View.VISIBLE
+        sfLayout.visible()
 
         btnScan.text = "Scanning..."
     }
@@ -324,6 +322,23 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun scanSettings(): ScanSettings {
+        return ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_BALANCED).build()
+    }
+
+    private fun scanFilters(): List<ScanFilter> {
+        val missedConnectionUUID = ""// Your UUID
+        val emergencyUDID = ""// Your UUID
+        val catchUDID = ""// Your UUID
+        val catchAllUDID = ""// Your UUID
+        val filter =
+            ScanFilter.Builder().setDeviceName("XTENDPRO")
+                .build()
+        val list = ArrayList<ScanFilter>(1)
+        list.add(filter)
+        return list
+    }
+
     private fun scanLeDevice() {
         requireActivity().hideKeyboard()
         //regionFilterByUUID //Scanning for devices with a specific service UUID
@@ -370,20 +385,26 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
             if (!scanning) { // Stops scanning after a pre-defined scan period.
                 handler.postDelayed({
                     binding.displayBleDeviceData()
-                }, 15000)
+                }, 5000)
 
                 bleDeviceDataList.clear()
                 scanning = true
 
                 bluetoothAdapter.bluetoothLeScanner?.startScan(scanCallback)
 
-                /* bluetoothAdapter.bluetoothLeScanner?.startScan(
-                     filters,
-                     scanSettings,
-                     scanCallback
-                 ) // with filters*/
+                /*bluetoothAdapter.bluetoothLeScanner?.startScan(
+                    scanFilters(),
+                    scanSettings(),
+                    scanCallback
+                )*/
 
-                Log.d(TAG, "scan started")
+                /*  bluetoothAdapter.bluetoothLeScanner?.startScan(
+                      filters,
+                      scanSettings,
+                      scanCallback
+                  ) // with filters*/
+
+                Log.d(TAG, "scan started with $filterLetter")
             } else {
                 binding.displayBleDeviceData()
             }
@@ -399,8 +420,8 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
         bluetoothAdapter.bluetoothLeScanner?.stopScan(scanCallback)
 
         sfLayout.stopShimmer()
-        sfLayout.visibility = View.GONE
-        rvConnections.visibility = View.VISIBLE
+        sfLayout.gone()
+        rvConnections.visible()
 
         Log.d(TAG, "bleDeviceDataList $bleDeviceDataList")
 
@@ -427,7 +448,7 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
         _binding = null
     }
 
-    override fun connectDevice(deviceData: BleDeviceData) {
+    override fun getDeviceInfo(deviceData: BleDeviceData) {
         Log.d(TAG, "connectDevice: $deviceData")
 
         connectedDevice = deviceData

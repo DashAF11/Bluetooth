@@ -16,10 +16,14 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.blemedium.blemodule.BleCharacteristicsData
 import com.example.blemedium.blemodule.BleDeviceData
 import com.example.blemedium.blemodule.printGattTable
 import com.example.blemedium.databinding.FragmentDeviceInfoBinding
+import com.example.blemedium.presenter.adapter.BleDeviceCharacteristicsAdapter
 import com.example.blemedium.presenter.adapter.BleDeviceServiceAdapter
+import com.example.blemedium.utils.setSafeOnClickListener
+import com.example.blemedium.utils.toast
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,10 +31,9 @@ import java.lang.String
 import java.util.*
 import javax.inject.Inject
 
-
 @SuppressLint("MissingPermission")
 @AndroidEntryPoint
-class DeviceInfoFragment : Fragment() {
+class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.CharacteristicsListener {
     companion object {
         private const val TAG = "DeviceInfoFragment"
     }
@@ -115,7 +118,7 @@ class DeviceInfoFragment : Fragment() {
         binding.apply {
             deviceData = bleDeviceData
 
-            btnDeviceConnection.setOnClickListener {
+            btnDeviceConnection.setSafeOnClickListener {
                 /**
                 When you call connectGatt the stack internally registers a new ‘client interface’ (clientIf).
                 You may have noticed a line like this in the logcat:
@@ -188,9 +191,12 @@ class DeviceInfoFragment : Fragment() {
 
                 if (bleDeviceData.isDeviceConnected) {
                     gatt.disconnect()
+                    requireActivity().toast("Disconnecting...")
                 } else {
                     gatt = device.connectGatt(context, false, gattCallback, TRANSPORT_LE)
                     gatt.connect()
+
+                    requireActivity().toast("Connecting...")
                 }
 
                 bleDeviceServiceAdapter = BleDeviceServiceAdapter(requireActivity())
@@ -227,7 +233,7 @@ class DeviceInfoFragment : Fragment() {
                         bleDeviceData.isDeviceConnected = true
 
                         binding.isLoading = true
-
+                        // requireActivity().toast("Connected")
                         /**
                          * Discovering services
                         Once you are connected to a device you must discover it’s services by calling discoverServices().
@@ -320,6 +326,7 @@ class DeviceInfoFragment : Fragment() {
                         binding.isDeviceConnected = false
                         bleDeviceData.isDeviceConnected = false
                         gatt.close()
+                        //    requireActivity().toast("Disconnected")
                     }
 
                     BluetoothProfile.STATE_CONNECTING -> {
@@ -388,6 +395,20 @@ class DeviceInfoFragment : Fragment() {
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             Log.d(TAG, "onServicesDiscovered: ${gatt.services[0].characteristics}")
 
+            gatt.services.forEach { service ->
+                service.characteristics.forEach { characteristic ->
+                    Log.d(
+                        TAG,
+                        "findCharacteristics: ${
+                            findCharacteristics(
+                                service.uuid.toString(),
+                                characteristic.uuid.toString()
+                            ).toString()
+                        }"
+                    )
+                }
+            }
+
             val serviceList: List<BluetoothGattService> = gatt.services
             Log.d(
                 TAG, "gattServices: ${
@@ -424,6 +445,7 @@ class DeviceInfoFragment : Fragment() {
                 Log.d(TAG, "onServicesDiscovered_allAvailableServices: ${printGattTable()}")
 
                 requireActivity().runOnUiThread {
+                    bleDeviceServiceAdapter.setCharacterListener(this@DeviceInfoFragment)
                     bleDeviceServiceAdapter.setServices(printGattTable())
                     binding.isLoading = false
                 }
@@ -510,7 +532,7 @@ class DeviceInfoFragment : Fragment() {
             return
         }
         val status =
-            gatt.readCharacteristic(characteristic)                              //Request the BluetoothGatt to Read the characteristic
+            gatt.readCharacteristic(characteristic)                         //Request the BluetoothGatt to Read the characteristic
         Log.i(TAG, "READ STATUS $status")
     }
 
@@ -602,6 +624,17 @@ class DeviceInfoFragment : Fragment() {
         }
     }
 
+    private fun findCharacteristics(
+        serviceUUID: kotlin.String,
+        characteristicUUID: kotlin.String
+    ): BluetoothGattCharacteristic? {
+        return gatt.services?.find { service ->
+            service.uuid.toString() == serviceUUID
+        }?.characteristics?.find { characteristics ->
+            characteristics.uuid.toString() == characteristicUUID
+        }
+    }
+
     /**
      * Caching by the Android Bluetooth stack
     Scanning not only gives you a list of BLE devices, but it also allows the bluetooth stack to ‘cache’ devices.
@@ -647,5 +680,9 @@ class DeviceInfoFragment : Fragment() {
     override fun onDestroy() {
         super.onDestroy()
         _binding = null
+    }
+
+    override fun characteristicClick(characteristic: BleCharacteristicsData) {
+        Log.d(TAG, "characteristicClick: $characteristic")
     }
 }

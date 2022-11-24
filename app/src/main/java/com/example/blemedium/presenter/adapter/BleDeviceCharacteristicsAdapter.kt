@@ -7,9 +7,10 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.blemedium.blemodule.BleCharacteristicsData
 import com.example.blemedium.databinding.ListItemBleCharacteristicsLayoutBinding
+import com.example.blemedium.utils.setSafeOnClickListener
 import kotlinx.coroutines.runBlocking
 
-class BleDeviceCharacteristicsAdapter :
+class BleDeviceCharacteristicsAdapter(val characteristicsListener: CharacteristicsListener) :
     RecyclerView.Adapter<BleDeviceCharacteristicsAdapter.ViewHolder>() {
 
     private var bleCharacteristicsList: MutableList<BleCharacteristicsData> = mutableListOf()
@@ -51,7 +52,14 @@ class BleDeviceCharacteristicsAdapter :
             binding.apply {
                 bleServiceData = entity
 
+                itemView.setSafeOnClickListener {
+                    characteristicsListener.characteristicClick(entity)
+                }
             }
         }
+    }
+
+    interface CharacteristicsListener {
+        fun characteristicClick(characteristic: BleCharacteristicsData)
     }
 }
