@@ -36,6 +36,8 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
                         BleCharacteristicsData(
                             char.uuid,
                             char.printProperties(),
+                            char.properties,
+                            char.permissions,
                             descriptorList
                         )
                     )

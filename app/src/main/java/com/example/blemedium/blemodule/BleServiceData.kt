@@ -10,6 +10,8 @@ data class BleServiceData(
 data class BleCharacteristicsData(
     var charUUID: UUID,
     var charProperties: String,
+    var charPropertiesInt: Int,
+    var charPermission: Int,
     var charDescriptor: List<BleDescriptorData>? = null
 )
 
