@@ -12,6 +12,7 @@ import com.example.blemedium.R
 import com.example.blemedium.blemodule.BleServiceData
 import com.example.blemedium.databinding.ListItemBleServiceLayoutBinding
 import com.example.blemedium.utils.drawableEnd
+import com.example.blemedium.utils.gone
 import com.example.blemedium.utils.setSafeOnClickListener
 import kotlinx.coroutines.runBlocking
 
@@ -21,6 +22,7 @@ class BleDeviceServiceAdapter(var context: Context) :
     private var bleServicesList: MutableList<BleServiceData> = mutableListOf()
     private lateinit var bleDeviceCharacteristicsAdapter: BleDeviceCharacteristicsAdapter
     private lateinit var characteristicsListener: BleDeviceCharacteristicsAdapter.CharacteristicsListener
+    private lateinit var operationListener: BleCharacteristicPropertyAdapter.PropertyListener
     override fun onCreateViewHolder(
         parent: ViewGroup, viewType: Int
     ): ViewHolder {
@@ -39,8 +41,12 @@ class BleDeviceServiceAdapter(var context: Context) :
         }
     }
 
-    fun setCharacterListener(listener: BleDeviceCharacteristicsAdapter.CharacteristicsListener) {
+    fun setCharacterListener(
+        listener: BleDeviceCharacteristicsAdapter.CharacteristicsListener,
+        operation: BleCharacteristicPropertyAdapter.PropertyListener
+    ) {
         this.characteristicsListener = listener
+        this.operationListener = operation
     }
 
     override fun getItemCount(): Int = bleServicesList.size
@@ -59,11 +65,13 @@ class BleDeviceServiceAdapter(var context: Context) :
                 bleServiceData = entity
 
                 bleDeviceCharacteristicsAdapter =
-                    BleDeviceCharacteristicsAdapter(characteristicsListener)
+                    BleDeviceCharacteristicsAdapter(context, operationListener)
                 rvCharacteristics.adapter = bleDeviceCharacteristicsAdapter
                 rvCharacteristics.layoutManager = LinearLayoutManager(context)
 
-                bleDeviceCharacteristicsAdapter.setCharacteristics(entity.characteristicsList)
+                rvCharacteristics.gone()
+
+                bleDeviceCharacteristicsAdapter.setCharacteristics(entity)
 
                 tvServiceUUID.setSafeOnClickListener {
                     if (rvCharacteristics.visibility == View.VISIBLE) {

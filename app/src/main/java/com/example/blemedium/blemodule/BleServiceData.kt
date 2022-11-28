@@ -4,15 +4,16 @@ import java.util.*
 
 data class BleServiceData(
     var serviceUUID: UUID,
+    var serviceType: Int,
     var characteristicsList: List<BleCharacteristicsData>
 )
 
 data class BleCharacteristicsData(
     var charUUID: UUID,
-    var charProperties: String,
+    var charProperties: List<String>,
     var charPropertiesInt: Int,
     var charPermission: Int,
-    var charDescriptor: List<BleDescriptorData>? = null
+//    var charDescriptor: List<BleDescriptorData>? = null
 )
 
 data class BleDescriptorData(

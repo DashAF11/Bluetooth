@@ -9,6 +9,10 @@
             name="bleServiceData"
             type="com.example.blemedium.blemodule.BleCharacteristicsData" />
 
+        <variable
+            name="operationName"
+            type="String" />
+
     </data>
 
     <androidx.cardview.widget.CardView
@@ -44,6 +48,18 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/tvCharUUID"
                 tools:text="Properties" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvOperation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:orientation="horizontal"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/tvCharProperties"
+                tools:listitem="@layout/list_item_ble_operation_layout" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 

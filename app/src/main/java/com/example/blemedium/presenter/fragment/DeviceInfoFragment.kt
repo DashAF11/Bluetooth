@@ -4,6 +4,7 @@ import android.R.attr
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.BluetoothDevice.*
+import android.bluetooth.BluetoothGatt.GATT_READ_NOT_PERMITTED
 import android.bluetooth.BluetoothGatt.GATT_SUCCESS
 import android.os.Build
 import android.os.Bundle
@@ -16,10 +17,9 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.blemedium.blemodule.BleCharacteristicsData
-import com.example.blemedium.blemodule.BleDeviceData
-import com.example.blemedium.blemodule.printGattTable
+import com.example.blemedium.blemodule.*
 import com.example.blemedium.databinding.FragmentDeviceInfoBinding
+import com.example.blemedium.presenter.adapter.BleCharacteristicPropertyAdapter
 import com.example.blemedium.presenter.adapter.BleDeviceCharacteristicsAdapter
 import com.example.blemedium.presenter.adapter.BleDeviceServiceAdapter
 import com.example.blemedium.utils.setSafeOnClickListener
@@ -31,9 +31,11 @@ import java.lang.String
 import java.util.*
 import javax.inject.Inject
 
+
 @SuppressLint("MissingPermission")
 @AndroidEntryPoint
-class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.CharacteristicsListener {
+class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.CharacteristicsListener,
+    BleCharacteristicPropertyAdapter.PropertyListener {
     companion object {
         private const val TAG = "DeviceInfoFragment"
     }
@@ -52,14 +54,24 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
     private lateinit var bleDeviceData: BleDeviceData
     private lateinit var device: BluetoothDevice
 
-    private lateinit var gatt: BluetoothGatt
+    private lateinit var bluetoothGatt: BluetoothGatt
     private var discoverServicesRunnable: Runnable? = null
 
     private lateinit var bleDeviceServiceAdapter: BleDeviceServiceAdapter
 
-    private var uuid = ""
-
     private var coroutineScope = CoroutineScope(Dispatchers.IO)
+
+    private var isRetrying = false
+    private var nrTries = 0
+    private val MAX_TRIES = 3
+
+    private var commandQueueBusy = false
+
+    private var readQueueIndex = 0
+    private var readQueueList = arrayListOf<BluetoothGattCharacteristic>()
+
+    private var serviceUUID: UUID? = null
+    private var characteristicUUID: UUID? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -190,11 +202,11 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
                  */
 
                 if (bleDeviceData.isDeviceConnected) {
-                    gatt.disconnect()
+                    bluetoothGatt.disconnect()
                     requireActivity().toast("Disconnecting...")
                 } else {
-                    gatt = device.connectGatt(context, false, gattCallback, TRANSPORT_LE)
-                    gatt.connect()
+                    bluetoothGatt = device.connectGatt(context, false, gattCallback, TRANSPORT_LE)
+                    bluetoothGatt.connect()
 
                     requireActivity().toast("Connecting...")
                 }
@@ -227,7 +239,7 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
 
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        Log.d(TAG, "onConnectionStateChange: STATE_CONNECTED")
+                        Log.e(TAG, "onConnectionStateChange: STATE_CONNECTED")
 
                         binding.isDeviceConnected = true
                         bleDeviceData.isDeviceConnected = true
@@ -320,7 +332,7 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
                     }
 
                     BluetoothProfile.STATE_DISCONNECTED -> {
-                        Log.d(TAG, "onConnectionStateChange: STATE_DISCONNECTED")
+                        Log.e(TAG, "onConnectionStateChange: STATE_DISCONNECTED")
                         binding.isLoading = false
                         binding.isDeviceConnected = false
                         bleDeviceData.isDeviceConnected = false
@@ -392,56 +404,39 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            // Log.d(TAG, "onServicesDiscovered: ${gatt.services[0].characteristics}")
-
-            /*      gatt.services.forEach { service ->
-                      service.characteristics.forEach { characteristic ->
-                          Log.d(
-                              TAG, "findCharacteristics: ${
-                                  findCharacteristics(
-                                      service.uuid.toString(), characteristic.uuid.toString()
-                                  ).toString()
-                              }"
-                          )
-                      }
-                  }
-
-                  val serviceList: List<BluetoothGattService> = gatt.services
-                  Log.d(TAG, "gattServices: ${
-                      serviceList.forEach {
-                          it.characteristics
-                      }
-                  }")*/
-
-            /*   if (serviceList != null) {
-                   for (gattService in serviceList) {
-
-                       //if (gattService.uuid.toString().equals(mContext.getString(R.string.char_uuid_emergency), ignoreCase = true)) {
-                       val gattCharacteristics = gattService.characteristics
-                       for (gattCharacteristic in gattCharacteristics) {
-
-                           uuid =
-                               if (gattCharacteristic.uuid != null) gattCharacteristic.uuid.toString() else ""
-
-                           //   if (uuid.equals(mContext.resources.getString(R.string.char_uuid_emergency_call), ignoreCase = true)) {
-                           var newChar = gattCharacteristic
-
-                           newChar = setProperties(newChar)
-                           Log.d(TAG, "newChar: $newChar")
-
-   //                        mDataBLEForEmergency = newChar
-                           // }
-                       }
-                       //    }
-                   }
-               }*/
-
             with(gatt) {
-                Log.d(TAG, "onServicesDiscovered_allAvailableServices: ${printGattTable()}")
+                Log.e(TAG, "onServicesDiscovered_allAvailableServices: ${printGattTable()}")
+
+                var readOnlyOnce = false
 
                 requireActivity().runOnUiThread {
-                    bleDeviceServiceAdapter.setCharacterListener(this@DeviceInfoFragment)
+                    bleDeviceServiceAdapter.setCharacterListener(
+                        this@DeviceInfoFragment, this@DeviceInfoFragment
+                    )
                     bleDeviceServiceAdapter.setServices(printGattTable())
+
+                    gatt.services.forEach { services ->
+                        run {
+                            services.characteristics.forEach { characteristic ->
+                                if (characteristic.isReadable() && characteristic.isNotifiable()) {
+                                    if (!readOnlyOnce) {
+                                        bluetoothGatt.readCharacteristic(characteristic)
+                                        Log.d(
+                                            TAG, "onServicesDiscovered: readCharacteristic=${
+                                                bluetoothGatt.readCharacteristic(characteristic)
+                                            }"
+                                        )
+                                        Log.d(
+                                            TAG,
+                                            "onServicesDiscoveredReading: ${services.uuid} : ${characteristic.uuid} = ${characteristic.value}"
+                                        )
+                                        readOnlyOnce = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     binding.isLoading = false
                 }
 
@@ -450,19 +445,14 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            /*val characteristic =
-                findCharacteristics(
-                    "adsad",
-                    "adsasd"
-                ) // to find it wee need chars UUID and service UUID
-            if (characteristic == null) {
-                coroutineScope.launch {
-                    sWatchData.emit(Resource.Error(errorMessage = "Could not find data!"))
 
-                }
-                return
+            Log.d(TAG, "onMtuChanged: ")
+            val characteristic = findCharacteristics(
+                serviceUUID.toString(), characteristicUUID.toString()
+            ) // to find it wee need chars UUID and service UUID
+            if (characteristic != null) {
+                enableNotification(characteristic)
             }
-            enableNotification(characteristic)*/
         }
 
         override fun onCharacteristicRead(
@@ -472,7 +462,40 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
             status: Int
         ) {
             super.onCharacteristicRead(gatt, characteristic, value, status)
-            Log.d(TAG, "onCharacteristicRead: ${gatt.readCharacteristic(characteristic)}")
+            Log.e(TAG, "onCharacteristicRead: $value")
+
+            with(characteristic) {
+                when (status) {
+                    GATT_SUCCESS -> {
+                        Log.e(
+                            TAG,
+                            "onCharacteristicRead Read characteristic $uuid:\n${value.toHexString()}"
+                        )
+                        //completedCommand()
+                    }
+                    GATT_READ_NOT_PERMITTED -> {
+                        Log.e(TAG, "onCharacteristicRead Read not permitted for $uuid!")
+                    }
+                    else -> {
+                        Log.e(
+                            TAG,
+                            "onCharacteristicRead Characteristic read failed for $uuid, error: $status"
+                        )
+                    }
+                }
+            }
+
+            Log.e(TAG, "onCharacteristicRead : ${Arrays.toString(characteristic.value)}")
+
+            /* readQueueList.remove(readQueueList[readQueueIndex])
+             if (readQueueList.size >= 0) {
+                 readQueueIndex--
+                 if (readQueueIndex === -1) {
+                     Log.e(TAG, "Read Queue Complete ")
+                 } else {
+                     readCharacteristics()//readQueueIndex
+                 }
+             }*/
             //readCharacteristic(characteristic)
         }
 
@@ -480,190 +503,18 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
         ) {
-
-            Log.d(TAG, "onCharacteristicChanged: $characteristic")
-            // readCharacteristic(characteristic)
-//            with(characteristic) {
-//                when (uuid) {
-//                    UUID.fromString("sada") -> {
-//                        val multiplicator = if (value.first().toInt() > 0) -1 else 1
-//                    }
-//                    else -> Unit
-//                }
-//            }
-        }
-    }
-
-//    fun readCharacteristic(characteristic: BluetoothGattCharacteristic): Boolean {
-//        if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ == 0) {
-//            return false
-//        }
-//        if (VDBG) Log.d(TAG, "readCharacteristic() - uuid: " + characteristic.uuid)
-//        if (mService == null || mClientIf === 0) return false
-//        val service = characteristic.service ?: return false
-//        val device: BluetoothDevice = service.getDevice() ?: return false
-//        synchronized(mDeviceBusy) {
-//            if (mDeviceBusy) return false
-//            mDeviceBusy = true
-//        }
-//        try {
-//            mService.readCharacteristic(
-//                mClientIf, device.address,
-//                characteristic.instanceId, AUTHENTICATION_NONE
-//            )
-//        } catch (e: RemoteException) {
-//            Log.e(TAG, "", e)
-//            mDeviceBusy = false
-//            return false
-//        }
-//        return true
-//    }
-
-    // Request a read of a given BluetoothGattCharacteristic. The Read result is reported asynchronously through the
-    // BluetoothGattCallback onCharacteristicRead callback method.
-    // For information only. This application uses Indication to receive updated characteristic data, not Read
-    fun readCharacteristic(characteristic: BluetoothGattCharacteristic) {
-        if (bluetoothAdapter == null || gatt == null) {                      //Check that we have access to a Bluetooth radio
-            return
-        }
-        val status =
-            gatt.readCharacteristic(characteristic)                         //Request the BluetoothGatt to Read the characteristic
-        Log.i(TAG, "READ STATUS $status")
-    }
-
-    private fun setProperties(gattCharacteristic: BluetoothGattCharacteristic): BluetoothGattCharacteristic {
-        val characteristicProperties = gattCharacteristic.properties
-
-        if (characteristicProperties and BluetoothGattCharacteristic.PROPERTY_NOTIFY > 0) {
-            setCharacteristicNotification(gattCharacteristic, true)
-        }
-
-        if (characteristicProperties and BluetoothGattCharacteristic.PROPERTY_INDICATE > 0) {
-            setCharacteristicIndication(gattCharacteristic, true)
-        }
-
-        if (characteristicProperties and BluetoothGattCharacteristic.PROPERTY_WRITE > 0) {
-            gattCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        }
-
-        if (characteristicProperties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE > 0) {
-            gattCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        }
-        if (characteristicProperties and BluetoothGattCharacteristic.PROPERTY_READ > 0) {
-            gattCharacteristic.writeType = BluetoothGattCharacteristic.PROPERTY_READ
-        }
-        return gattCharacteristic
-    }
-
-    // Enable indication on a characteristic
-    private fun setCharacteristicIndication(
-        characteristic: BluetoothGattCharacteristic, enabled: Boolean
-    ) {
-        try {
-            if (bluetoothAdapter == null || gatt == null) { //Check that we have a GATT connection
-                Log.i(TAG, "BluetoothAdapter not initialized")
-                return
-            }
-
-            //Enable notification and indication for the characteristic
-            gatt.setCharacteristicNotification(characteristic, enabled)
-
-            for (des in characteristic.descriptors) {
-                if (null != des) {
-                    des.value =
-                        BluetoothGattDescriptor.ENABLE_INDICATION_VALUE//Set the value of the descriptor to enable indication
-                    gatt.writeDescriptor(des)
-                    Log.i(
-                        TAG, "***********************SET CHARACTERISTIC INDICATION SUCCESS**"
-                    )//Write the descriptor
-                }
-            }
-        } catch (e: Exception) {
-            Log.i(TAG, e.message.toString())
-        }
-
-    }
-
-    // Enable notification on a characteristic
-    // For information only. This application uses Indication, not Notification
-    private fun setCharacteristicNotification(
-        characteristic: BluetoothGattCharacteristic, enabled: Boolean
-    ) {
-        try {
-            //Check that we have a GATT connection
-            if (bluetoothAdapter == null || gatt == null) {
-                Log.i(TAG, "BluetoothAdapter not initialized")
-                return
-            }
-
-            //Enable notification and indication for the characteristic
-            gatt.setCharacteristicNotification(
-                characteristic, enabled
+            Log.e(
+                TAG, "onCharacteristicChanged: ${characteristic.value.toHexString()}"
             )
-            for (des in characteristic.descriptors) {
-                if (null != des) {
-                    //Set the value of the descriptor to enable notification
-                    des.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                    gatt.writeDescriptor(des)
-                }
+        }
 
-            }
-        } catch (e: Exception) {
-            Log.i(TAG, e.message.toString())
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int
+        ) {
+            super.onCharacteristicWrite(gatt, characteristic, status)
+            Log.d(TAG, "onCharacteristicWrite ${characteristic?.uuid} written")
         }
     }
-
-    private fun findCharacteristics(
-        serviceUUID: kotlin.String, characteristicUUID: kotlin.String
-    ): BluetoothGattCharacteristic? {
-        return gatt.services?.find { service ->
-            service.uuid.toString() == serviceUUID
-        }?.characteristics?.find { characteristics ->
-            characteristics.uuid.toString() == characteristicUUID
-        }
-    }
-
-//    fun readCharacteristic(characteristic: BluetoothGattCharacteristic?): Boolean {
-//        if (bluetoothGatt == null) {
-//            Log.e(TAG, "ERROR: Gatt is 'null', ignoring read request")
-//            return false
-//        }
-//
-//        // Check if characteristic is valid
-//        if (characteristic == null) {
-//            Log.e(TAG, "ERROR: Characteristic is 'null', ignoring read request")
-//            return false
-//        }
-//
-//        // Check if this characteristic actually has READ property
-//        if (characteristic.properties and PROPERTY_READ == 0) {
-//            Log.e(TAG, "ERROR: Characteristic cannot be read")
-//            return false
-//        }
-//
-//        // Enqueue the read command now that all checks have been passed
-//        val result: Boolean = commandQueue.add(Runnable {
-//            if (!bluetoothGatt.readCharacteristic(characteristic)) {
-//                Log.e(
-//                    TAG,
-//                    kotlin.String.format(
-//                        "ERROR: readCharacteristic failed for characteristic: %s",
-//                        characteristic.uuid
-//                    )
-//                )
-//                completedCommand()
-//            } else {
-//                Log.d(TAG, kotlin.String.format("reading characteristic <%s>", characteristic.uuid))
-//                nrTries++
-//            }
-//        })
-//        if (result) {
-//            nextCommand()
-//        } else {
-//            Log.e(TAG, "ERROR: Could not enqueue read characteristic command")
-//        }
-//        return result
-//    }
 
     /**
      * Caching by the Android Bluetooth stack
@@ -712,11 +563,269 @@ class DeviceInfoFragment : Fragment(), BleDeviceCharacteristicsAdapter.Character
         _binding = null
     }
 
-    override fun characteristicClick(characteristic: BleCharacteristicsData) {
-        Log.d(TAG, "characteristicClick: $characteristic")
-        val bluetoothGattCharacteristic = BluetoothGattCharacteristic(
-            characteristic.charUUID, characteristic.charPropertiesInt, characteristic.charPermission
+    override fun characteristicRead(serviceData: BleServiceData, adapterPosition: Int) {
+
+        Log.d(TAG, "characteristicClick: serviceData... $serviceData")
+        Log.d(TAG, "characteristicClick: serviceDataUUID ${serviceData.serviceUUID}")
+        Log.d(
+            TAG,
+            "characteristicClick: CharacteristicUUID ${serviceData.characteristicsList[adapterPosition].charUUID}"
         )
-        gatt.readCharacteristic(bluetoothGattCharacteristic)
+        //00002a19-0000-1000-8000-00805f9b34fb
+
+        serviceUUID = serviceData.serviceUUID
+        characteristicUUID = serviceData.characteristicsList[adapterPosition].charUUID
+
+        val bluetoothLeService =
+            BluetoothGattService(serviceData.serviceUUID, serviceData.serviceType)
+
+        val bluetoothGattCharacteristic = BluetoothGattCharacteristic(
+            serviceData.characteristicsList[adapterPosition].charUUID,
+            serviceData.characteristicsList[adapterPosition].charPropertiesInt,
+            serviceData.characteristicsList[adapterPosition].charPermission
+        )
+
+        val batteryServiceUuid =
+            UUID.fromString(serviceData.serviceUUID.toString()) //serviceData . serviceUUID  "00001801-0000-1000-8000-00805f9b34fb"
+        val batteryLevelCharUuid =
+            UUID.fromString(serviceData.characteristicsList[adapterPosition].charUUID.toString()) //"0000180F-0000-1000-8000-00805f9b34fb"
+
+        val batteryLevelChar =
+            bluetoothGatt.getService(batteryServiceUuid)?.getCharacteristic(batteryLevelCharUuid)
+        if (batteryLevelChar?.isReadable() == true) {
+            bluetoothGatt.readCharacteristic(batteryLevelChar)
+            Log.d(TAG, "characteristicClick: ${bluetoothGatt.readCharacteristic(batteryLevelChar)}")
+        } else {
+            Log.d(TAG, "characteristicClick: Else")
+        }
+
+
+        Log.d(
+            TAG, "characteristicClick: readCharacteristic ${
+                readCharacteristic(bluetoothGattCharacteristic)
+            }"
+        )
+
+        if (bluetoothAdapter == null || bluetoothGatt == null) {
+            Log.w(TAG, "BluetoothAdapter not initialized")
+            return
+        }
+
+
+        //   bluetoothGatt.readCharacteristic(bluetoothGattCharacteristic)
+
+        /*val batteryServiceUUID = UUID.fromString("00001801-0000-1000-8000-00805f9b34fb")
+        val batteryCharacteristicUUID = UUID.fromString("0000180F-0000-1000-8000-00805f9b34fb")
+
+        val batteryService: BluetoothGattService = bluetoothGatt.getService(batteryServiceUUID)
+        if (batteryService == null) {
+            Log.d(TAG, "Battery service not found!")
+            return
+        }
+
+        val batteryLevel = batteryService.getCharacteristic(batteryCharacteristicUUID)
+        if (batteryLevel == null) {
+            Log.d(TAG, "Battery level not found!")
+            //return
+        }
+        bluetoothGatt.readCharacteristic(batteryLevel)
+        Log.v(TAG, "batteryLevel = " + bluetoothGatt.readCharacteristic(batteryLevel))*/
+
+        /*  val batteryServiceUuid = bluetoothLeService.uuid
+          val batteryLevelCharUuid = bluetoothGattCharacteristic.uuid
+          val normalChar =
+              bluetoothGatt.getService(batteryServiceUuid)?.getCharacteristic(batteryLevelCharUuid)
+  */
+//        //readingCharacteristic
+//        readQueueList.add(bluetoothGattCharacteristic)
+//        readQueueIndex = readQueueList.size
+//        readCharacteristics() //readQueueIndex
+
+        // Enqueue the read command now that all checks have been passed
+        val commandQueue: Queue<Runnable>? = null
+
+//        val result: Boolean? = commandQueue?.add(Runnable {
+//            if (!bluetoothGatt.readCharacteristic(bluetoothGattCharacteristic)) {
+//                Log.e(
+//                    TAG,
+//                    String.format(
+//                        "ERROR: readCharacteristic failed for characteristic: %s",
+//                        bluetoothGattCharacteristic.uuid
+//                    )
+//                )
+//              //  completedCommand()
+//            } else {
+//                Log.d(
+//                    TAG,
+//                    String.format("reading characteristic <%s>", bluetoothGattCharacteristic.uuid)
+//                )
+//                  nrTries++
+//            }
+//        })
+
+//        Log.d(TAG, "characteristicClick: $result")
+//
+//        if (result == true) {
+//         //   nextCommand()
+//        } else {
+//            Log.e(TAG, "ERROR: Could not enqueue read characteristic command");
+//        }
+
+        /*  if (normalChar?.isReadable() != true) {
+              //    bluetoothGatt.readCharacteristic(batteryLevelChar)
+
+              Log.d(
+                  TAG,
+                  "readingCharacteristic: ${
+                      bluetoothGatt.readCharacteristic(
+                          bluetoothGattCharacteristic
+                      )
+                  }"
+              )
+          }*/
     }
+
+    override fun characteristicWrite(serviceData: BleServiceData, adapterPosition: Int) {
+
+    }
+
+    override fun characteristicNotify(serviceData: BleServiceData, adapterPosition: Int) {
+    }
+
+//    private fun nextCommand() {
+//        // If there is still a command being executed then bail out
+//        if (commandQueueBusy) {
+//            return
+//        }
+//
+//        // Check if we still have a valid gatt object
+//        if (bluetoothGatt == null) {
+//            Log.e(
+//                TAG,
+//                String.format(
+//                    "ERROR: GATT is 'null' for peripheral '%s', clearing command queue",
+//                    "getAddress()"
+//                )
+//            )
+//            commandQueue!!.clear()
+//            commandQueueBusy = false
+//            return
+//        }
+//
+//        // Execute the next command in the queue
+//        if (commandQueue!!.size > 0) {
+//            val bluetoothCommand = commandQueue.peek()
+//            commandQueueBusy = true
+//            // nrTries = 0
+//            handler.post {
+//                try {
+//                    if (bluetoothCommand != null) {
+//                        bluetoothCommand.run()
+//                    }
+//                } catch (ex: Exception) {
+//                    Log.e(
+//                        TAG,
+//                        String.format("ERROR: Command exception for device '%s'", " getName()"),
+//                        ex
+//                    )
+//                }
+//            }
+//        }
+//    }
+
+//    private fun completedCommand() {
+//        commandQueueBusy = false
+//        isRetrying = false
+//        commandQueue!!.poll()
+//        nextCommand()
+//    }
+
+//    private fun retryCommand() {
+//        commandQueueBusy = false
+//        val currentCommand = commandQueue!!.peek()
+//        if (currentCommand != null) {
+//            if (nrTries >= MAX_TRIES) {
+//                // Max retries reached, give up on this one and proceed
+//                Log.v(TAG, "Max number of tries reached")
+//                commandQueue.poll()
+//            } else {
+//                isRetrying = true
+//            }
+//        }
+//        nextCommand()
+//    }
+
+    private fun readCharacteristics() { //index: Int
+        bluetoothGatt.readCharacteristic(readQueueList[0])
+    }
+
+    private fun readCharacteristic(characteristic: BluetoothGattCharacteristic): Boolean {
+        Log.e(TAG, "readCharacteristicCharacteristicUUID: $characteristic")
+
+        if (characteristic.isReadable()) {
+            bluetoothGatt.readCharacteristic(characteristic)
+        } else if (characteristic.isWritable()) {
+            //  bluetoothGatt.writeCharacteristic(characteristic)
+        }
+        return bluetoothGatt.readCharacteristic(characteristic)
+    }
+
+    private fun findCharacteristics(
+        serviceUUID: kotlin.String, characteristicUUID: kotlin.String
+    ): BluetoothGattCharacteristic? {
+        return bluetoothGatt.services?.find { service ->
+            service.uuid.toString() == serviceUUID
+        }?.characteristics?.find { characteristics ->
+            characteristics.uuid.toString() == characteristicUUID
+        }
+    }
+
+    private fun enableNotification(characteristic: BluetoothGattCharacteristic) {
+        val cccdUUID = UUID.fromString(characteristic.uuid.toString())
+        val payload = when {
+            characteristic.isIndicatable() -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            characteristic.isNotifiable() -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            else -> return
+        }
+
+        characteristic.getDescriptor(cccdUUID)?.let { cccdDescriptor ->
+            if (!bluetoothGatt.setCharacteristicNotification(characteristic, true)) {
+                Log.d("BleReceiveManager: ", "setCharacteristicsNotiFailed")
+                return
+            }
+            writeDescriptor(cccdDescriptor, payload)
+        }
+    }
+
+    private fun writeDescriptor(descriptor: BluetoothGattDescriptor, payload: ByteArray) {
+        bluetoothGatt.let { gatt ->
+            descriptor.value = payload
+            gatt.writeDescriptor(descriptor)
+        }
+    }
+
+    override fun propertyRead(serviceData: BleServiceData) {
+        Log.d(TAG, "characteristicRead: $serviceData")
+    }
+
+    override fun propertyWrite(serviceData: BleServiceData) {
+        Log.d(TAG, "characteristicWrite: $serviceData")
+    }
+
+    override fun propertyNotify(serviceData: BleServiceData) {
+        Log.d(TAG, "characteristicNotify: $serviceData")
+    }
+
+    override fun propertyIndicate(serviceData: BleServiceData) {
+        Log.d(TAG, "propertyIndicate: $serviceData")
+    }
+
+    override fun propertyWithoutResponse(serviceData: BleServiceData) {
+        Log.d(TAG, "propertyWriteNotResponse: $serviceData")
+    }
+
+    override fun propertyUnknown(serviceData: BleServiceData) {
+        Log.d(TAG, "propertyUnknown: $serviceData")
+    }
+
 }

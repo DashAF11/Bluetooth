@@ -1,19 +1,25 @@
 package com.example.blemedium.presenter.adapter
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothGattCharacteristic
+import android.content.Context
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.blemedium.blemodule.BleCharacteristicsData
+import com.example.blemedium.blemodule.BleServiceData
 import com.example.blemedium.databinding.ListItemBleCharacteristicsLayoutBinding
-import com.example.blemedium.utils.setSafeOnClickListener
 import kotlinx.coroutines.runBlocking
 
-class BleDeviceCharacteristicsAdapter(val characteristicsListener: CharacteristicsListener) :
+class BleDeviceCharacteristicsAdapter(
+    var context: Context,
+    private var operationListener: BleCharacteristicPropertyAdapter.PropertyListener
+) :
     RecyclerView.Adapter<BleDeviceCharacteristicsAdapter.ViewHolder>() {
 
-    private var bleCharacteristicsList: MutableList<BleCharacteristicsData> = mutableListOf()
+    private lateinit var bleServiceData: BleServiceData
+    private lateinit var bleDeviceOperationsAdapter: BleCharacteristicPropertyAdapter
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -29,37 +35,51 @@ class BleDeviceCharacteristicsAdapter(val characteristicsListener: Characteristi
     }
 
     @SuppressLint("NotifyDataSetChanged")
-    fun setCharacteristics(characteristicsList: List<BleCharacteristicsData>) {
+    fun setCharacteristics(characteristicsList: BleServiceData) {
         runBlocking {
-            bleCharacteristicsList = characteristicsList as MutableList<BleCharacteristicsData>
-            Log.e("bleCharacteristicsList", "${bleCharacteristicsList.size}")
+            bleServiceData = characteristicsList
+            Log.e("setCharacteristics", "${bleServiceData.characteristicsList.size}")
             notifyDataSetChanged()
         }
     }
 
-    override fun getItemCount(): Int = bleCharacteristicsList.size
+    override fun getItemCount(): Int = bleServiceData.characteristicsList.size
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(bleCharacteristicsList[position])
+        holder.bind(bleServiceData)
     }
 
     inner class ViewHolder(private val binding: ListItemBleCharacteristicsLayoutBinding) :
         RecyclerView.ViewHolder(binding.root) {
-        fun bind(entity: BleCharacteristicsData) {
+        fun bind(entity: BleServiceData) {
 
             Log.d("BleDeviceCharacteristicsAdapter: ", "$entity")
 
             binding.apply {
-                bleServiceData = entity
+                bleServiceData = entity.characteristicsList[adapterPosition]
 
-                itemView.setSafeOnClickListener {
-                    characteristicsListener.characteristicClick(entity)
-                }
+                bleDeviceOperationsAdapter =
+                    BleCharacteristicPropertyAdapter(operationListener)
+                rvOperation.adapter = bleDeviceOperationsAdapter
+                rvOperation.layoutManager =
+                    LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+
+                bleDeviceOperationsAdapter.setProperty(entity, adapterPosition)
+
+                val bluetoothGattCharacteristic = BluetoothGattCharacteristic(
+                    entity.characteristicsList[adapterPosition].charUUID,
+                    entity.characteristicsList[adapterPosition].charPropertiesInt,
+                    entity.characteristicsList[adapterPosition].charPermission
+                )
+
+
             }
         }
     }
 
     interface CharacteristicsListener {
-        fun characteristicClick(characteristic: BleCharacteristicsData)
+        fun characteristicRead(serviceData: BleServiceData, adapterPosition: Int)
+        fun characteristicWrite(serviceData: BleServiceData, adapterPosition: Int)
+        fun characteristicNotify(serviceData: BleServiceData, adapterPosition: Int)
     }
 }
