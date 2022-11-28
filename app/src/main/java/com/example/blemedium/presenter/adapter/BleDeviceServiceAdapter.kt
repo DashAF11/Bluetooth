@@ -21,7 +21,6 @@ class BleDeviceServiceAdapter(var context: Context) :
 
     private var bleServicesList: MutableList<BleServiceData> = mutableListOf()
     private lateinit var bleDeviceCharacteristicsAdapter: BleDeviceCharacteristicsAdapter
-    private lateinit var characteristicsListener: BleDeviceCharacteristicsAdapter.CharacteristicsListener
     private lateinit var operationListener: BleCharacteristicPropertyAdapter.PropertyListener
     override fun onCreateViewHolder(
         parent: ViewGroup, viewType: Int
@@ -42,10 +41,8 @@ class BleDeviceServiceAdapter(var context: Context) :
     }
 
     fun setCharacterListener(
-        listener: BleDeviceCharacteristicsAdapter.CharacteristicsListener,
         operation: BleCharacteristicPropertyAdapter.PropertyListener
     ) {
-        this.characteristicsListener = listener
         this.operationListener = operation
     }
 

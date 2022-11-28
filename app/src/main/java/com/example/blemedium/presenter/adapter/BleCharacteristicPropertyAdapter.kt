@@ -87,13 +87,13 @@ class BleCharacteristicPropertyAdapter(val propertyListener: PropertyListener) :
                 tvProperty.setSafeOnClickListener {
                     when (entity.characteristicsList[characteristicPosition].charProperties[adapterPosition]) {
                         PROPERTY_READ -> {
-                            propertyListener.propertyRead(entity)
+                            propertyListener.propertyRead(entity, characteristicPosition)
                         }
                         PROPERTY_WRITE -> {
-                            propertyListener.propertyWrite(entity)
+                            propertyListener.propertyWrite(entity, characteristicPosition)
                         }
                         PROPERTY_NOTIFY -> {
-                            propertyListener.propertyNotify(entity)
+                            propertyListener.propertyNotify(entity, characteristicPosition)
                         }
                     }
                 }
@@ -103,11 +103,11 @@ class BleCharacteristicPropertyAdapter(val propertyListener: PropertyListener) :
     }
 
     interface PropertyListener {
-        fun propertyRead(serviceData: BleServiceData)
-        fun propertyWrite(serviceData: BleServiceData)
-        fun propertyNotify(serviceData: BleServiceData)
-        fun propertyIndicate(serviceData: BleServiceData)
-        fun propertyWithoutResponse(serviceData: BleServiceData)
-        fun propertyUnknown(serviceData: BleServiceData)
+        fun propertyRead(serviceData: BleServiceData, characterPosition: Int)
+        fun propertyWrite(serviceData: BleServiceData, characterPosition: Int)
+        fun propertyNotify(serviceData: BleServiceData, characterPosition: Int)
+        fun propertyIndicate(serviceData: BleServiceData, characterPosition: Int)
+        fun propertyWithoutResponse(serviceData: BleServiceData, characterPosition: Int)
+        fun propertyUnknown(serviceData: BleServiceData, characterPosition: Int)
     }
 }

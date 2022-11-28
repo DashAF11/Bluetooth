@@ -71,15 +71,7 @@ class BleDeviceCharacteristicsAdapter(
                     entity.characteristicsList[adapterPosition].charPropertiesInt,
                     entity.characteristicsList[adapterPosition].charPermission
                 )
-
-
             }
         }
-    }
-
-    interface CharacteristicsListener {
-        fun characteristicRead(serviceData: BleServiceData, adapterPosition: Int)
-        fun characteristicWrite(serviceData: BleServiceData, adapterPosition: Int)
-        fun characteristicNotify(serviceData: BleServiceData, adapterPosition: Int)
     }
 }
