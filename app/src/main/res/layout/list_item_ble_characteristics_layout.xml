@@ -51,7 +51,7 @@
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvProperty"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
                 android:orientation="horizontal"
@@ -66,7 +66,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
-                android:elevation="5dp"
                 app:cardCornerRadius="5dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -75,7 +74,7 @@
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@color/teal_200"
+                    android:background="@color/teal_900"
                     android:padding="10dp">
 
                     <TextView
@@ -83,8 +82,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Descriptor"
-                        android:textColor="@color/black"
+                        android:drawableTint="@color/teal_200"
                         android:textStyle="bold"
+                        android:elevation="5dp"
+                        android:textColor="@color/teal_200"
                         app:drawableEndCompat="@drawable/ic_arrow_down"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
