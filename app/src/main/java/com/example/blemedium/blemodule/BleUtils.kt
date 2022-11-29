@@ -17,7 +17,7 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
 
     val serviceList = arrayListOf<BleServiceData>()
     val characteristicsList = arrayListOf<BleCharacteristicsData>()
-    // val descriptorList = arrayListOf<BleDescriptorData>()
+    val descriptorList = arrayListOf<BleDescriptorData>()
 
     if (services.isNotEmpty()) {
 
@@ -29,12 +29,15 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
 
                     if (char.descriptors.isNotEmpty()) {
                         char.descriptors.forEach { descriptor ->
-                            /*descriptorList.add(
-                                BleDescriptorData(
-                                    descriptor.uuid,
-                                    descriptor.printProperties()
-                                )
-                            )*/
+                            val descriptorData = BleDescriptorData(
+                                descriptor.uuid, descriptor.printProperties().convertToList()
+                            )
+
+                            if (!descriptorList.contains(descriptorData)) {
+                                descriptorList.add(descriptorData)
+                            }
+
+                            Log.d("Descriptor:", "$descriptor")
                         }
                     }
 
@@ -43,8 +46,7 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
                             char.uuid,
                             char.printProperties().convertToList(),
                             char.properties,
-                            char.permissions,
-                            // descriptorList
+                            char.permissions, descriptorList
                         )
                     )
 
@@ -53,13 +55,8 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
                             separator = "\n|------", prefix = "|------"
                         ) { descriptor ->
                             "${descriptor.uuid}: ${descriptor.printProperties()}"
-                            /*  descriptorList.add(
-                                  BleDescriptorData(
-                                      descriptor.uuid,
-                                      descriptor.printProperties()
-                                  )
-                              )*/
-                            Log.d("description_other", description).toString()
+
+                            Log.d("Descriptor_other", "$descriptor").toString()
                         }
                     }
                     description

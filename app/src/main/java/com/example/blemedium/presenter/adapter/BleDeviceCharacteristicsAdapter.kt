@@ -1,15 +1,20 @@
 package com.example.blemedium.presenter.adapter
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.blemedium.R
 import com.example.blemedium.blemodule.BleServiceData
 import com.example.blemedium.databinding.ListItemBleCharacteristicsLayoutBinding
+import com.example.blemedium.utils.drawableEnd
+import com.example.blemedium.utils.gone
+import com.example.blemedium.utils.setSafeOnClickListener
+import com.example.blemedium.utils.visible
 import kotlinx.coroutines.runBlocking
 
 class BleDeviceCharacteristicsAdapter(
@@ -19,7 +24,8 @@ class BleDeviceCharacteristicsAdapter(
     RecyclerView.Adapter<BleDeviceCharacteristicsAdapter.ViewHolder>() {
 
     private lateinit var bleServiceData: BleServiceData
-    private lateinit var bleDeviceOperationsAdapter: BleCharacteristicPropertyAdapter
+    private lateinit var bleCharacteristicPropertyAdapter: BleCharacteristicPropertyAdapter
+    private lateinit var bleCharacteristicDescriptorAdapter: BleCharacteristicDescriptorAdapter
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -58,19 +64,32 @@ class BleDeviceCharacteristicsAdapter(
             binding.apply {
                 bleServiceData = entity.characteristicsList[adapterPosition]
 
-                bleDeviceOperationsAdapter =
+                bleCharacteristicPropertyAdapter =
                     BleCharacteristicPropertyAdapter(operationListener)
-                rvOperation.adapter = bleDeviceOperationsAdapter
-                rvOperation.layoutManager =
+                rvProperty.adapter = bleCharacteristicPropertyAdapter
+                rvProperty.layoutManager =
                     LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+                bleCharacteristicPropertyAdapter.setProperty(entity, adapterPosition)
 
-                bleDeviceOperationsAdapter.setProperty(entity, adapterPosition)
 
-                val bluetoothGattCharacteristic = BluetoothGattCharacteristic(
-                    entity.characteristicsList[adapterPosition].charUUID,
-                    entity.characteristicsList[adapterPosition].charPropertiesInt,
-                    entity.characteristicsList[adapterPosition].charPermission
-                )
+                bleCharacteristicDescriptorAdapter =
+                    BleCharacteristicDescriptorAdapter()
+                rvDescriptor.adapter = bleCharacteristicDescriptorAdapter
+                rvDescriptor.layoutManager =
+                    LinearLayoutManager(context)
+
+                bleCharacteristicDescriptorAdapter.setDescriptor(entity, adapterPosition)
+
+                tvDescriptor.setSafeOnClickListener {
+                    if (rvDescriptor.visibility == View.VISIBLE) {
+                        rvDescriptor.gone()
+                        tvDescriptor.drawableEnd(R.drawable.ic_arrow_down)
+                    } else {
+                        rvDescriptor.visible()
+                        tvDescriptor.drawableEnd(R.drawable.ic_arrow_up)
+                    }
+                }
+
             }
         }
     }

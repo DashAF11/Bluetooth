@@ -6,7 +6,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.blemedium.blemodule.BleServiceData
-import com.example.blemedium.databinding.ListItemBleOperationLayoutBinding
+import com.example.blemedium.databinding.ListItemBlePropertyLayoutBinding
 import com.example.blemedium.utils.Constants.Companion.PROPERTY_INDICATE
 import com.example.blemedium.utils.Constants.Companion.PROPERTY_NOTIFY
 import com.example.blemedium.utils.Constants.Companion.PROPERTY_READ
@@ -26,7 +26,7 @@ class BleCharacteristicPropertyAdapter(val propertyListener: PropertyListener) :
         viewType: Int
     ): ViewHolder {
         val binding =
-            ListItemBleOperationLayoutBinding.inflate(
+            ListItemBlePropertyLayoutBinding.inflate(
                 LayoutInflater.from(parent.context),
                 parent,
                 false
@@ -51,7 +51,7 @@ class BleCharacteristicPropertyAdapter(val propertyListener: PropertyListener) :
         holder.bind(serviceData)
     }
 
-    inner class ViewHolder(private val binding: ListItemBleOperationLayoutBinding) :
+    inner class ViewHolder(private val binding: ListItemBlePropertyLayoutBinding) :
         RecyclerView.ViewHolder(binding.root) {
         fun bind(entity: BleServiceData) {
 

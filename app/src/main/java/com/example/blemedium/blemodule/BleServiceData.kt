@@ -13,10 +13,10 @@ data class BleCharacteristicsData(
     var charProperties: List<String>,
     var charPropertiesInt: Int,
     var charPermission: Int,
-//    var charDescriptor: List<BleDescriptorData>? = null
+    var charDescriptor: List<BleDescriptorData>
 )
 
 data class BleDescriptorData(
     var descriptorUUID: UUID,
-    var descriptorProperty: String
+    var descriptorProperty: List<String>
 )

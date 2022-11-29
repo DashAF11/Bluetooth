@@ -30,6 +30,7 @@ import java.lang.String
 import java.util.*
 import javax.inject.Inject
 
+
 @SuppressLint("MissingPermission")
 @AndroidEntryPoint
 class DeviceInfoFragment : Fragment(),
@@ -696,32 +697,36 @@ class DeviceInfoFragment : Fragment(),
             serviceData.characteristicsList[characterPosition].charPermission
         )
 
-        val batteryServiceUuid =
-            UUID.fromString(serviceData.serviceUUID.toString()) //serviceData . serviceUUID  "00001801-0000-1000-8000-00805f9b34fb"
-        val batteryLevelCharUuid =
-            UUID.fromString(serviceData.characteristicsList[characterPosition].charUUID.toString()) //"0000180F-0000-1000-8000-00805f9b34fb"
-
-        val batteryLevelChar =
-            bluetoothGatt.getService(batteryServiceUuid)?.getCharacteristic(batteryLevelCharUuid)
-        if (batteryLevelChar?.isReadable() == true) {
-            bluetoothGatt.readCharacteristic(batteryLevelChar)
-            Log.d(TAG, "propertyRead: ${bluetoothGatt.readCharacteristic(batteryLevelChar)}")
+        if (bluetoothGattCharacteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ == 0) {
+            Log.d(TAG, "propertyRead: true")
         } else {
-            Log.d(TAG, "propertyRead: Else")
+            Log.d(TAG, "propertyRead: false")
         }
 
+        /*     val batteryServiceUuid =
+              UUID.fromString(serviceData.serviceUUID.toString()) //serviceData . serviceUUID  "00001801-0000-1000-8000-00805f9b34fb"
+          val batteryLevelCharUuid =
+              UUID.fromString(serviceData.characteristicsList[characterPosition].charUUID.toString()) //"0000180F-0000-1000-8000-00805f9b34fb"
 
-        Log.d(
-            TAG, "propertyRead: readCharacteristic ${
-                readCharacteristic(bluetoothGattCharacteristic)
-            }"
-        )
+          val batteryLevelChar =
+              bluetoothGatt.getService(batteryServiceUuid)?.getCharacteristic(batteryLevelCharUuid)
+          if (batteryLevelChar?.isReadable() == true) {
+              bluetoothGatt.readCharacteristic(batteryLevelChar)
+              Log.d(TAG, "propertyRead: ${bluetoothGatt.readCharacteristic(batteryLevelChar)}")
+          } else {
+              Log.d(TAG, "propertyRead: Else")
+          }
 
-        if (bluetoothAdapter == null || bluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized")
-            return
-        }
+          Log.d(
+              TAG, "propertyRead: readCharacteristic ${
+                  readCharacteristic(bluetoothGattCharacteristic)
+              }"
+          )
 
+          if (bluetoothAdapter == null || bluetoothGatt == null) {
+              Log.w(TAG, "BluetoothAdapter not initialized")
+              return
+          }*/
 
         //   bluetoothGatt.readCharacteristic(bluetoothGattCharacteristic)
 
@@ -815,5 +820,4 @@ class DeviceInfoFragment : Fragment(),
     override fun propertyUnknown(serviceData: BleServiceData, characterPosition: Int) {
         Log.d(TAG, "propertyUnknown: $serviceData")
     }
-
 }
