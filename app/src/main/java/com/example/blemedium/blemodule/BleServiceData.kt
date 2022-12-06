@@ -18,5 +18,6 @@ data class BleCharacteristicsData(
 
 data class BleDescriptorData(
     var descriptorUUID: UUID,
-    var descriptorProperty: List<String>
+    var descriptorProperty: List<String>,
+    var descriptorPermission: Int
 )

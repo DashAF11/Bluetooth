@@ -9,9 +9,11 @@ import com.example.blemedium.utils.Constants.Companion.PROPERTY_NOTIFY
 import com.example.blemedium.utils.Constants.Companion.PROPERTY_READ
 import com.example.blemedium.utils.Constants.Companion.PROPERTY_WITHOUT_RESPONSE
 import com.example.blemedium.utils.Constants.Companion.PROPERTY_WRITE
+import com.example.blemedium.utils.convertToList
 import java.util.*
 
-const val CCCD_DESCRIPTOR_UUID = "00002902-0000-1000-8000-00805F9B34FB"
+/** UUID of the Client Characteristic Configuration Descriptor (0x2902). */
+const val CCC_DESCRIPTOR_UUID = "00002902-0000-1000-8000-00805F9B34FB"
 
 fun BluetoothGatt.printGattTable(): List<BleServiceData> {
 
@@ -25,30 +27,7 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
             val characteristicsTable =
                 service.characteristics.joinToString(separator = "\n|--", prefix = "|--") { char ->
                     var description = "${char.uuid}: ${char.printProperties()}"
-                    Log.d("description ", description)
-
-                    if (char.descriptors.isNotEmpty()) {
-                        char.descriptors.forEach { descriptor ->
-                            val descriptorData = BleDescriptorData(
-                                descriptor.uuid, descriptor.printProperties().convertToList()
-                            )
-
-                            if (!descriptorList.contains(descriptorData)) {
-                                descriptorList.add(descriptorData)
-                            }
-
-                            Log.d("Descriptor:", "$descriptor")
-                        }
-                    }
-
-                    characteristicsList.add(
-                        BleCharacteristicsData(
-                            char.uuid,
-                            char.printProperties().convertToList(),
-                            char.properties,
-                            char.permissions, descriptorList
-                        )
-                    )
+                    //    Log.d("description ", description)
 
                     if (char.descriptors.isNotEmpty()) {
                         description += "\n" + char.descriptors.joinToString(
@@ -56,12 +35,45 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
                         ) { descriptor ->
                             "${descriptor.uuid}: ${descriptor.printProperties()}"
 
-                            Log.d("Descriptor_other", "$descriptor").toString()
+                            Log.d("Descriptor_other", "${descriptor.uuid}").toString()
                         }
                     }
                     description
 
                 }
+
+            service.characteristics.forEach { characteristic ->
+
+                if (characteristic.descriptors.isNotEmpty()) {
+                    characteristic.descriptors.forEach { descriptor ->
+                        val descriptorData = BleDescriptorData(
+                            descriptor.uuid, descriptor.printProperties().convertToList(),
+                            descriptor.permissions
+                        )
+
+                        if (!descriptorList.contains(descriptorData)) {
+                            descriptorList.add(descriptorData)
+                        }
+
+                        Log.d(
+                            "DescriptorCheck:",
+                            " ${characteristic.uuid} => ${descriptor.uuid}  ${descriptor.permissions}  "
+                        )
+                    }
+                }
+
+                Log.d("printGattTable:", "${characteristic.uuid} => ${characteristic.properties}")
+
+                characteristicsList.add(
+                    BleCharacteristicsData(
+                        characteristic.uuid,
+                        characteristic.printProperties().convertToList(),
+                        characteristic.properties,
+                        characteristic.permissions, descriptorList
+                    )
+                )
+            }
+
             Log.d("BLEGattService ", "${service.uuid}\nCharacteristics:\n$characteristicsTable")
             serviceList.add(BleServiceData(service.uuid, service.type, characteristicsList))
         }
@@ -73,6 +85,32 @@ fun BluetoothGatt.printGattTable(): List<BleServiceData> {
     }
     return serviceList
 }
+
+
+fun BluetoothGatt.findCharacteristic(uuid: UUID): BluetoothGattCharacteristic? {
+    services?.forEach { service ->
+        service.characteristics?.firstOrNull { characteristic ->
+            characteristic.uuid == uuid
+        }?.let { matchingCharacteristic ->
+            return matchingCharacteristic
+        }
+    }
+    return null
+}
+
+fun BluetoothGatt.findDescriptor(uuid: UUID): BluetoothGattDescriptor? {
+    services?.forEach { service ->
+        service.characteristics.forEach { characteristic ->
+            characteristic.descriptors?.firstOrNull { descriptor ->
+                descriptor.uuid == uuid
+            }?.let { matchingDescriptor ->
+                return matchingDescriptor
+            }
+        }
+    }
+    return null
+}
+
 
 //region Characteristics
 
@@ -123,13 +161,9 @@ fun BluetoothGattDescriptor.containsPermission(permission: Int): Boolean =
     permissions and permission != 0
 
 fun BluetoothGattDescriptor.isCccd() =
-    uuid.toString().uppercase(Locale.US) == CCCD_DESCRIPTOR_UUID.uppercase(Locale.US)
+    uuid.toString().uppercase(Locale.US) == CCC_DESCRIPTOR_UUID.uppercase(Locale.US)
 
 //endregion
 
 fun ByteArray.toHexString(): String =
     joinToString(separator = " ", prefix = "0x") { String.format("%02X", it) }
-
-fun String.convertToList(): List<String> {
-    return listOf(*this.split(",").toTypedArray())
-}

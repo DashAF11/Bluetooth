@@ -16,6 +16,7 @@
          location information, you can strongly assert that your app
          doesn't derive physical location. -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- Needed only if your app communicates with already-paired Bluetooth
          devices. -->

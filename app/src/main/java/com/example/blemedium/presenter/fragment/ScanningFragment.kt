@@ -99,6 +99,13 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
             }
         }*/
 
+        val requestMultiplePermissions =
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+                permissions.entries.forEach {
+                    Log.d("test006", "${it.key} = ${it.value}")
+                }
+            }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             requestMultiplePermissions.launch(
                 arrayOf(
@@ -278,7 +285,7 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
 
             if (device.name != null) {
                 Log.d(TAG, "onScanResult: ${device.name}")
-                val bleDeviceData = BleDeviceData(device.name, device.address, false)
+                val bleDeviceData = BleDeviceData(device.name, device.address, false, result.device)
 
                 if (bleDeviceData != null) {
                     if (!bleDeviceDataList.contains(bleDeviceData)) {
@@ -392,17 +399,17 @@ class ScanningFragment : Fragment(), BleDeviceAdapter.ConnectDeviceListener {
 
                 bluetoothAdapter.bluetoothLeScanner?.startScan(scanCallback)
 
-                /*bluetoothAdapter.bluetoothLeScanner?.startScan(
-                    scanFilters(),
-                    scanSettings(),
-                    scanCallback
-                )*/
+                /* bluetoothAdapter.bluetoothLeScanner?.startScan(
+                     scanFilters(),
+                     scanSettings(),
+                     scanCallback
+                 )*/
 
-                /*  bluetoothAdapter.bluetoothLeScanner?.startScan(
-                      filters,
-                      scanSettings,
-                      scanCallback
-                  ) // with filters*/
+                /* bluetoothAdapter.bluetoothLeScanner?.startScan(
+                     filters,
+                     scanSettings,
+                     scanCallback
+                 ) // with filters*/
 
                 Log.d(TAG, "scan started with $filterLetter")
             } else {
