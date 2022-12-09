@@ -1,6 +1,8 @@
 package com.example.blemedium.presenter.fragment
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.app.Dialog
 import android.bluetooth.*
 import android.bluetooth.BluetoothDevice.*
 import android.bluetooth.BluetoothGatt.*
@@ -18,17 +20,21 @@ import com.example.blemedium.blemodule.*
 import com.example.blemedium.blemodule.BLEConstants.Companion.GATT_MAX_MTU_SIZE
 import com.example.blemedium.blemodule.BLEConstants.Companion.GATT_MIN_MTU_SIZE
 import com.example.blemedium.databinding.FragmentDeviceInfoBinding
+import com.example.blemedium.databinding.PopupWriteOparationLayoutBinding
 import com.example.blemedium.presenter.adapter.BleCharacteristicPropertyAdapter
 import com.example.blemedium.presenter.adapter.BleDeviceServiceAdapter
 import com.example.blemedium.utils.setSafeOnClickListener
+import com.example.blemedium.utils.string
 import com.example.blemedium.utils.toast
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import java.nio.charset.StandardCharsets
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
+
 
 @SuppressLint("MissingPermission")
 @AndroidEntryPoint
@@ -68,6 +74,8 @@ class DeviceInfoFragment : Fragment(),
     private val deviceGattMap = ConcurrentHashMap<BluetoothDevice, BluetoothGatt>()
     private val operationQueue = ConcurrentLinkedQueue<BleOperationType>()
     private var pendingOperation: BleOperationType? = null
+
+    private var notifyingCharacteristicList = mutableListOf<UUID>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -396,9 +404,13 @@ class DeviceInfoFragment : Fragment(),
                     Handler(Looper.getMainLooper()).post {
                         gatt.discoverServices()
                     }
+
+                    binding.isDeviceConnected = true
+
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.e(TAG, "onConnectionStateChange: disconnected from $deviceAddress")
                     teardownConnection(gatt.device)
+                    binding.isDeviceConnected = false
                 }
             } else {
                 Log.e(
@@ -409,6 +421,7 @@ class DeviceInfoFragment : Fragment(),
                     signalEndOfOperation()
                 }
                 teardownConnection(gatt.device)
+                binding.isDeviceConnected = false
             }
 
             /**
@@ -480,37 +493,14 @@ class DeviceInfoFragment : Fragment(),
             }
         }
 
-        /*  override fun onCharacteristicRead(
-              gatt: BluetoothGatt,
-              characteristic: BluetoothGattCharacteristic,
-              value: ByteArray,
-              status: Int
-          ) {
-              super.onCharacteristicRead(gatt, characteristic, value, status)
-              Log.e(TAG, "onCharacteristicRead: $value")
-  
-              with(characteristic) {
-                  when (status) {
-                      GATT_SUCCESS -> {
-                          Log.e(
-                              TAG,
-                              "onCharacteristicRead Read characteristic $uuid:\n${value.toHexString()}"
-                          )
-                      }
-                      GATT_READ_NOT_PERMITTED -> {
-                          Log.e(TAG, "onCharacteristicRead Read not permitted for $uuid!")
-                      }
-                      else -> {
-                          Log.e(
-                              TAG,
-                              "onCharacteristicRead Characteristic read failed for $uuid, error: $status"
-                          )
-                      }
-                  }
-              }
-  
-              Log.e(TAG, "onCharacteristicRead : ${Arrays.toString(characteristic.value)}")
-          }*/
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            super.onCharacteristicRead(gatt, characteristic, value, status)
+        }
 
         override fun onCharacteristicRead(
             gatt: BluetoothGatt,
@@ -520,14 +510,46 @@ class DeviceInfoFragment : Fragment(),
             with(characteristic) {
                 when (status) {
                     GATT_SUCCESS -> {
+                        Log.d(
+                            TAG,
+                            "onCharacteristicRead: $value | translated ${
+                                String(
+                                    value,
+                                    StandardCharsets.UTF_8
+                                )
+                            } | ${String(value, StandardCharsets.UTF_16)}" +
+                                    " \n${String(value, StandardCharsets.ISO_8859_1)} | ${
+                                        String(
+                                            value,
+                                            StandardCharsets.UTF_16BE
+                                        )
+                                    } | " +
+                                    "${String(value, StandardCharsets.UTF_16LE)} \n ${
+                                        String(
+                                            value,
+                                            StandardCharsets.US_ASCII
+                                        )
+                                    }"
+                        )
+
                         Log.i(TAG, "Read characteristic $uuid | value: ${value.toHexString()}")
+
+                        showPropertyValueDialog(
+                            "Read characteristic \n$uuid",
+                            "value: ${value.toHexString()}"
+                        )
                         //  listeners.forEach { it.get()?.onCharacteristicRead?.invoke(gatt.device, this) }
                     }
                     GATT_READ_NOT_PERMITTED -> {
                         Log.e(TAG, "Read not permitted for $uuid!")
+                        showPropertyValueDialog("Read not permitted for $uuid!", "")
                     }
                     else -> {
                         Log.e(TAG, "Characteristic read failed for $uuid, error: $status")
+                        showPropertyValueDialog(
+                            "Characteristic read failed for $uuid, error: $status",
+                            ""
+                        )
                     }
                 }
             }
@@ -685,6 +707,10 @@ class DeviceInfoFragment : Fragment(),
                               characteristic
                           )
                       }*/
+                    showPropertyValueDialog(
+                        "Notifications or indications ENABLED on",
+                        "$charUuid"
+                    )
                 }
                 notificationsDisabled -> {
                     Log.w(TAG, "Notifications or indications DISABLED on $charUuid")
@@ -694,9 +720,18 @@ class DeviceInfoFragment : Fragment(),
                                characteristic
                            )
                        }*/
+
+                    showPropertyValueDialog(
+                        "Notifications or indications DISABLED on $charUuid",
+                        ""
+                    )
                 }
                 else -> {
                     Log.e(TAG, "Unexpected value ${value.toHexString()} on CCCD of $charUuid")
+                    showPropertyValueDialog(
+                        "Unexpected value ${value.toHexString()} on CCCD of $charUuid",
+                        ""
+                    )
                 }
             }
         }
@@ -792,16 +827,31 @@ class DeviceInfoFragment : Fragment(),
     override fun propertyWrite(serviceData: BleServiceData, characterPosition: Int) {
         Log.d(TAG, "characteristicWrite: $serviceData")
         setUUIDsAndData(serviceData, characterPosition)
+
+        bluetoothGattCharacteristic?.let { showWriteDialog(it) }
     }
 
     override fun propertyNotify(serviceData: BleServiceData, characterPosition: Int) {
         Log.d(TAG, "characteristicNotify: $serviceData")
         setUUIDsAndData(serviceData, characterPosition)
+
+        checkForNotifyAndIndicateCharacteristic()
+    }
+
+    private fun checkForNotifyAndIndicateCharacteristic() {
+        if (!notifyingCharacteristicList.contains(bluetoothGattCharacteristic?.uuid)) {
+            bluetoothGattCharacteristic?.uuid?.let { notifyingCharacteristicList.add(it) }
+            bluetoothGattCharacteristic?.let { enableNotifications(bluetoothDevice, it) }
+        } else {
+            notifyingCharacteristicList.remove(bluetoothGattCharacteristic?.uuid)
+            bluetoothGattCharacteristic?.let { disableNotifications(bluetoothDevice, it) }
+        }
     }
 
     override fun propertyIndicate(serviceData: BleServiceData, characterPosition: Int) {
         Log.d(TAG, "propertyIndicate: $serviceData")
         setUUIDsAndData(serviceData, characterPosition)
+        checkForNotifyAndIndicateCharacteristic()
     }
 
     override fun propertyWithoutResponse(serviceData: BleServiceData, characterPosition: Int) {
@@ -880,8 +930,11 @@ class DeviceInfoFragment : Fragment(),
                 return
             }
 
-        // TODO: Make sure each operation ultimately leads to signalEndOfOperation()
-        // TODO: Refactor this into an BleOperationType abstract or extension function
+        /**
+         * Make sure each operation ultimately leads to signalEndOfOperation()
+         * Refactor this into an BleOperationType abstract or extension function
+         */
+
         when (operation) {
             is Disconnect -> with(operation) {
                 Log.w(TAG, "Disconnecting from ${device.address}")
@@ -989,20 +1042,20 @@ class DeviceInfoFragment : Fragment(),
         }
     }
 
-    fun readCharacteristic(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic) {
-        if (device.isConnected() && characteristic.isReadable()) {
+    private fun readCharacteristic(
+        device: BluetoothDevice, characteristic: BluetoothGattCharacteristic
+    ) {
+        if (device.isConnected()) { //&& characteristic.isReadable()
             enqueueOperation(CharacteristicRead(device, characteristic.uuid))
-        } else if (!characteristic.isReadable()) {
+        } /*else if (!characteristic.isReadable()) {
             Log.e(TAG, "Attempting to read ${characteristic.uuid} that isn't readable!")
-        } else if (!device.isConnected()) {
+        }*/ else { //if (!device.isConnected())
             Log.e(TAG, "Not connected to ${device.address}, cannot perform characteristic read")
         }
     }
 
-    fun writeCharacteristic(
-        device: BluetoothDevice,
-        characteristic: BluetoothGattCharacteristic,
-        payload: ByteArray
+    private fun writeCharacteristic(
+        device: BluetoothDevice, characteristic: BluetoothGattCharacteristic, payload: ByteArray
     ) {
         val writeType = when {
             characteristic.isWritable() -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
@@ -1020,4 +1073,82 @@ class DeviceInfoFragment : Fragment(),
             Log.e(TAG, "Not connected to ${device.address}, cannot perform characteristic write")
         }
     }
+
+    private fun showWriteDialog(characteristic: BluetoothGattCharacteristic) {
+        val dialog = Dialog(requireContext())
+        val binding: PopupWriteOparationLayoutBinding =
+            PopupWriteOparationLayoutBinding.inflate(LayoutInflater.from(context))
+        dialog.setContentView(binding.root)
+
+        binding.apply {
+            with(etPayload.string) {
+                if (isNotBlank() && isNotEmpty()) {
+                    val bytes = hexToBytes()
+                    Log.e(TAG, "Writing to ${characteristic.uuid}: ${bytes.toHexString()}")
+                    writeCharacteristic(bluetoothDevice, characteristic, bytes)
+                } else {
+                    Log.e(TAG, "Please enter a hex payload to write to ${characteristic.uuid}")
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun String.hexToBytes() =
+        this.chunked(2).map { it.toUpperCase(Locale.US).toInt(16).toByte() }.toByteArray()
+
+    private fun enableNotifications(
+        device: BluetoothDevice, characteristic: BluetoothGattCharacteristic
+    ) {
+        if (device.isConnected() && (characteristic.isIndicatable() || characteristic.isNotifiable())) {
+            enqueueOperation(EnableNotifications(device, characteristic.uuid))
+        } else if (!device.isConnected()) {
+            Log.e(TAG, "Not connected to ${device.address}, cannot enable notifications")
+        } else if (!characteristic.isIndicatable() && !characteristic.isNotifiable()) {
+            Log.e(
+                TAG,
+                "Characteristic ${characteristic.uuid} doesn't support notifications/indications"
+            )
+        }
+    }
+
+    private fun disableNotifications(
+        device: BluetoothDevice, characteristic: BluetoothGattCharacteristic
+    ) {
+        if (device.isConnected() && (characteristic.isIndicatable() || characteristic.isNotifiable())) {
+            enqueueOperation(DisableNotifications(device, characteristic.uuid))
+        } else if (!device.isConnected()) {
+            Log.e(TAG, "Not connected to ${device.address}, cannot disable notifications")
+        } else if (!characteristic.isIndicatable() && !characteristic.isNotifiable()) {
+            Log.e(
+                TAG,
+                "Characteristic ${characteristic.uuid} doesn't support notifications/indications"
+            )
+        }
+    }
+
+    private fun showPropertyValueDialog(operation: String, value: String) {
+        handler.postDelayed({
+            /*  val dialog = Dialog(requireContext())
+              val binding: PopupPropertyDataLayoutBinding =
+                  PopupPropertyDataLayoutBinding.inflate(LayoutInflater.from(context))
+              dialog.setContentView(binding.root)
+
+              binding.tvPropertyValue.text = value
+
+              dialog.show()*/
+
+
+            val alertDialog: AlertDialog = AlertDialog.Builder(context).create()
+            alertDialog.setTitle(operation)
+            alertDialog.setMessage(value)
+            alertDialog.setButton(
+                "OKAY"
+            ) { _, _ -> alertDialog.dismiss() }
+
+            alertDialog.show()
+        }, 500)
+    }
+
 }

@@ -16,6 +16,7 @@ import com.example.blemedium.utils.gone
 import com.example.blemedium.utils.setSafeOnClickListener
 import com.example.blemedium.utils.visible
 import kotlinx.coroutines.runBlocking
+import java.util.*
 
 class BleDeviceCharacteristicsAdapter(
     var context: Context,
@@ -26,6 +27,9 @@ class BleDeviceCharacteristicsAdapter(
     private lateinit var bleServiceData: BleServiceData
     private lateinit var bleCharacteristicPropertyAdapter: BleCharacteristicPropertyAdapter
     private lateinit var bleCharacteristicDescriptorAdapter: BleCharacteristicDescriptorAdapter
+    private var propertyValue = ""
+    private var propertyPosition = 0
+    private var charUUID: UUID? = null
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -46,6 +50,15 @@ class BleDeviceCharacteristicsAdapter(
             bleServiceData = characteristicsList
             Log.e("setCharacteristics", "${bleServiceData.characteristicsList.size}")
             notifyDataSetChanged()
+        }
+    }
+
+    fun setCharacteristicValue(value: String, position: Int, uuID: UUID) {
+        runBlocking {
+            propertyValue = value
+            propertyPosition = position
+            charUUID = uuID
+            Log.d("setCharacteristicValue", "$propertyValue | $propertyPosition | $charUUID")
         }
     }
 
